@@ -21,6 +21,16 @@ def _strip_html(text):
     return tag_re.sub('', str(text))
 
 
+def parse_boxscore_url(url_tag):
+    """
+    Parses the URL from the boxscore tag
+    :param url_tag: The url tag
+    :return: The boxscore url
+    """
+    soup = BeautifulSoup(url_tag)
+    return soup.find_all('a', href=True)[0]['href']
+
+
 def parse_season_log(team, year, csv=False):
     """
     Parses the season log
@@ -33,6 +43,10 @@ def parse_season_log(team, year, csv=False):
         'http://www.pro-football-reference.com/teams/%s/%s.htm' % (team, year)
 
     res = requests.get(season_url)
+    # PFR will redirect you to a 404 page if not found
+    # but still serves you a 200 response
+    if '404' in res.url:
+        raise Exception('No data found for team %s in year %s' % (team, year))
     soup = BeautifulSoup(res.text)
     parsed = soup.findAll(
         'div', {
@@ -41,19 +55,24 @@ def parse_season_log(team, year, csv=False):
         }
     )
     rows = parsed[0].findAll('td')
-    # Group the rows into the number of columns
+    # After 1994, they added 3 more columns
     column_len = 24 if int(year) >= 1994 else 21
-    grouped_rows = \
-        [rows[i:i+column_len] for i in range(0, len(rows), column_len)]
+    # Group the rows into the number of columns
+    grouped_rows = [
+        rows[i:i+column_len] for i in range(0, len(rows), column_len)
+    ]
     data = []
     for row in grouped_rows:
         # If there is no day of week then it was the bye week
         if _strip_html(row[1]) == '':
             continue
-        soup = BeautifulSoup(str(row[3]))
-        box_score_uri = soup.find_all('a', href=True)[0]['href']
+        box_score_uri = parse_boxscore_url(
+            str(row[COL_NAMES.index('boxscore_url')]))
         row = map(lambda x: _strip_html(x), row)
+        # Add the year into the data
         if csv:
+            row.insert(0, str(year))
+            row[COL_NAMES.index('boxscore_url')] = box_score_uri
             data.append(','.join(row[:len(COL_NAMES)]))
         else:
             row_dict = dict(zip(COL_NAMES, row))
@@ -94,6 +113,3 @@ def parse_game_info_log(gamelog_url):
         'game_info': parse_log_table(res.text, 'div_game_info'),
         'ref_info': parse_log_table(res.text, 'div_ref_info')
     }
-
-if __name__ == '__main__':
-    print parse_season_log('phi', '1983', csv=True)
