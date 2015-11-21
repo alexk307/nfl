@@ -31,10 +31,11 @@ def parse_boxscore_url(url_tag):
     return soup.find_all('a', href=True)[0]['href']
 
 
-def parse_season_log(team, year, csv=False):
+def parse_season_log(team, verbose_name, year, csv=False):
     """
     Parses the season log
     :param team: The team abbreviation
+    :param verbose_name: The full name of the team
     :param year: The year to fetch
     :param csv: Boolean flag to output in csv or in JSON
     :return: List of data in JSON | csv
@@ -72,8 +73,9 @@ def parse_season_log(team, year, csv=False):
         # Add the year into the data
         if csv:
             row.insert(0, str(year))
-            row[COL_NAMES.index('boxscore_url')] = box_score_uri
-            data.append(','.join(row[:len(COL_NAMES)]))
+            row.insert(1, verbose_name)
+            row[COL_NAMES.index('boxscore_url') + 1] = box_score_uri
+            data.append(','.join(row))
         else:
             row_dict = dict(zip(COL_NAMES, row))
             row_dict['boxscore'] = box_score_uri
